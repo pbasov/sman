@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: secret-manager
+  namespace: sman
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: secret-manager
+  template:
+    metadata:
+      labels:
+        app: secret-manager
+    spec:
+      serviceAccountName: secret-manager
+      containers:
+        - name: secret-manager
+          image: git.weystrom.dev/weystrom/sman:v0.0.3
+          imagePullPolicy: Always
+      imagePullSecrets:
+        - name: git-weystrom-dev

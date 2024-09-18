@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kubernetes Secret Manager</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>API Keys</h1>
+      <button id="createNewSecretBtn">+ Create new secret key</button>
+    </div>
+
+    <div class="table-container">
+      <table class="secret-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Secret Key</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="secretList">
+          <!-- Secrets will be dynamically injected here from app.js -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Modal for creating new secrets -->
+  <div id="secretModal" class="modal">
+    <div class="modal-content">
+      <span class="close">&times;</span>
+      <h2>Create New Secret</h2>
+      <form id="secretForm">
+        <div>
+          <label for="secretName">Secret Name:</label>
+          <input type="text" id="secretName" name="secretName" required>
+        </div>
+        <div>
+          <label for="dataKey">Data Key:</label>
+          <input type="text" id="dataKey" name="dataKey" required>
+        </div>
+        <div>
+          <label for="dataValue">Data Value:</label>
+          <input type="text" id="dataValue" name="dataValue" required>
+        </div>
+        <button type="submit">Create Secret</button>
+      </form>
+    </div>
+  </div>
+
+  <p id="statusMessage"></p>
+
+  <script src="app.js"></script>
+</body>
+</html>
