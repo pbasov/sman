@@ -4,10 +4,10 @@ COPY go.mod ./
 COPY main.go ./
 RUN go mod tidy
 RUN go build -o kube-secret-api
-COPY ./frontend ./frontend
+COPY ./static ./static
 
 FROM alpine:3.14
 WORKDIR /root/
 COPY --from=builder /app/kube-secret-api .
-COPY --from=builder /app/frontend ./frontend
+COPY --from=builder /app/static ./static
 CMD ["./kube-secret-api"]

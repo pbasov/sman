@@ -13,14 +13,12 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-// Secret represents the structure for both creating and retrieving secrets
 type Secret struct {
 	Name      string            `json:"name"`
 	Namespace string            `json:"namespace"`
 	Data      map[string]string `json:"data"`
 }
 
-// createSecret is a reusable function to create a Kubernetes secret
 func createSecret(clientset *kubernetes.Clientset, namespace string, secretName string, secretData map[string][]byte) error {
 	secret := &v1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
@@ -38,7 +36,31 @@ func createSecret(clientset *kubernetes.Clientset, namespace string, secretName 
 	return nil
 }
 
-// getSecrets returns the list of secrets from a specific namespace
+func updateSecret(clientset *kubernetes.Clientset, namespace string, secretName string, secretData map[string][]byte) error {
+	secret, err := clientset.CoreV1().Secrets(namespace).Get(context.TODO(), secretName, metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to get secret for update: %v", err)
+	}
+
+	// Update the secret data
+	secret.Data = secretData
+
+	_, err = clientset.CoreV1().Secrets(namespace).Update(context.TODO(), secret, metav1.UpdateOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to update secret: %v", err)
+	}
+
+	return nil
+}
+
+func deleteSecret(clientset *kubernetes.Clientset, namespace string, secretName string) error {
+	err := clientset.CoreV1().Secrets(namespace).Delete(context.TODO(), secretName, metav1.DeleteOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to delete secret: %v", err)
+	}
+	return nil
+}
+
 func getSecrets(clientset *kubernetes.Clientset, namespace string) ([]Secret, error) {
 	secrets, err := clientset.CoreV1().Secrets(namespace).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
@@ -64,7 +86,7 @@ func getSecrets(clientset *kubernetes.Clientset, namespace string) ([]Secret, er
 	return secretList, nil
 }
 
-// handleSecrets handles both GET and POST requests to create or retrieve secrets
+// handleSecrets handles GET, POST, PUT, and DELETE requests for secrets
 func handleSecrets(clientset *kubernetes.Clientset) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
@@ -89,23 +111,18 @@ func handleSecrets(clientset *kubernetes.Clientset) http.HandlerFunc {
 			}
 
 		case http.MethodPost:
-			// Handle POST request to create a new secret
 			var secretReq Secret
-
-			// Parse JSON request
 			err := json.NewDecoder(r.Body).Decode(&secretReq)
 			if err != nil {
 				http.Error(w, "Invalid request payload", http.StatusBadRequest)
 				return
 			}
 
-			// Convert secret data from string to byte array
 			secretData := make(map[string][]byte)
 			for key, value := range secretReq.Data {
 				secretData[key] = []byte(value)
 			}
 
-			// Call the reusable function to create the secret
 			err = createSecret(clientset, secretReq.Namespace, secretReq.Name, secretData)
 			if err != nil {
 				http.Error(w, fmt.Sprintf("Error creating secret: %v", err), http.StatusInternalServerError)
@@ -115,6 +132,46 @@ func handleSecrets(clientset *kubernetes.Clientset) http.HandlerFunc {
 			w.WriteHeader(http.StatusCreated)
 			fmt.Fprintf(w, "Secret %s created successfully in namespace %s\n", secretReq.Name, secretReq.Namespace)
 
+		case http.MethodPut:
+			var secretReq Secret
+
+			err := json.NewDecoder(r.Body).Decode(&secretReq)
+			if err != nil {
+				http.Error(w, "Invalid request payload", http.StatusBadRequest)
+				return
+			}
+
+			secretData := make(map[string][]byte)
+			for key, value := range secretReq.Data {
+				secretData[key] = []byte(value)
+			}
+
+			err = updateSecret(clientset, secretReq.Namespace, secretReq.Name, secretData)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("Error updating secret: %v", err), http.StatusInternalServerError)
+				return
+			}
+
+			w.WriteHeader(http.StatusOK)
+			fmt.Fprintf(w, "Secret %s updated successfully in namespace %s\n", secretReq.Name, secretReq.Namespace)
+
+		case http.MethodDelete:
+			namespace := r.URL.Query().Get("namespace")
+			secretName := r.URL.Query().Get("name")
+			if namespace == "" || secretName == "" {
+				http.Error(w, "Namespace and secret name are required", http.StatusBadRequest)
+				return
+			}
+
+			err := deleteSecret(clientset, namespace, secretName)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("Error deleting secret: %v", err), http.StatusInternalServerError)
+				return
+			}
+
+			w.WriteHeader(http.StatusOK)
+			fmt.Fprintf(w, "Secret %s deleted successfully from namespace %s\n", secretName, namespace)
+
 		default:
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
@@ -122,26 +179,24 @@ func handleSecrets(clientset *kubernetes.Clientset) http.HandlerFunc {
 }
 
 func main() {
-	// In-cluster configuration
+	// in-cluster client using service account
 	config, err := rest.InClusterConfig()
 	if err != nil {
 		log.Fatalf("Failed to load in-cluster config: %v", err)
 	}
 
-	// Create Kubernetes client
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		log.Fatalf("Failed to create Kubernetes client: %v", err)
 	}
 
-	// Serve static files from the "frontend" directory
-	fs := http.FileServer(http.Dir("./frontend"))
+	// serve frontend
+	fs := http.FileServer(http.Dir("./static"))
 	http.Handle("/", fs)
 
-	// Serve the API endpoint for both creating and retrieving secrets
+	// api endpoint
 	http.HandleFunc("/secrets", handleSecrets(clientset))
 
-	// Start the HTTP server
 	port := ":8080"
 	log.Printf("Starting server on port %s...", port)
 	if err := http.ListenAndServe(port, nil); err != nil {
