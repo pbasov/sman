@@ -10,33 +10,45 @@ document.addEventListener('DOMContentLoaded', async function () {
     statusMessage.style.visibility = 'visible';
   }
 
-  // Fetch secrets on page load
+  // Fetch secrets from the API
   async function loadSecrets() {
     try {
       const response = await fetch(`/secrets?namespace=${namespace}`);
       const secrets = await response.json();
       
-      secretList.innerHTML = '';
-      
+      secretList.innerHTML = ''; // Clear the current secret list
+
+      if (secrets.length === 0) {
+        // Handle the case where there are no secrets
+        secretList.innerHTML = '<tr><td colspan="3">No secrets found</td></tr>';
+        return;
+      }
+
+      // If secrets exist, render them
       secrets.forEach(secret => {
         let secretKeyValue = "";
 
-        // Loop over all key-value pairs in secret.data
-        for (let key in secret.data) {
-          if (secret.data.hasOwnProperty(key)) {
-            secretKeyValue += `${key}: ${secret.data[key]}, `;
+        // Check if secret.data exists before looping over it
+        if (secret.data) {
+          // Loop over all key-value pairs in secret.data
+          for (let key in secret.data) {
+            if (secret.data.hasOwnProperty(key)) {
+              secretKeyValue += `${key}: ${secret.data[key]}, `;
+            }
           }
-        }
 
-        // Remove the trailing comma and space
-        secretKeyValue = secretKeyValue.slice(0, -2);
+          // Remove the trailing comma and space
+          secretKeyValue = secretKeyValue.slice(0, -2);
+        } else {
+          secretKeyValue = "No data";
+        }
 
         const secretItem = document.createElement('tr');
         secretItem.innerHTML = `
           <td>${secret.name}</td>
-          <td>${secretKeyValue || "No data"}</td>
+          <td>${secretKeyValue}</td>
           <td class="actions">
-            <span class="edit" data-name="${secret.name}" data-key="${Object.keys(secret.data)[0]}" data-value="${Object.values(secret.data)[0]}">✏️</span>
+            <span class="edit" data-name="${secret.name}" data-key="${Object.keys(secret.data || {})[0]}" data-value="${Object.values(secret.data || {})[0]}">✏️</span>
             <span class="delete" data-name="${secret.name}">🗑️</span>
           </td>`;
         secretList.appendChild(secretItem);
